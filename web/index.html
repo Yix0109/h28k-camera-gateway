@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>监控中心</title>
+<script>
+/* 严格会话：任何「刷新/重新加载」都强制登出，回登录页重新输密码 */
+(function () {
+  try {
+    var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation'))[0];
+    var isReload = nav ? (nav.type === 'reload')
+                       : (performance.navigation && performance.navigation.type === 1);
+    if (isReload) {
+      try { window.name = ''; } catch (e) {}
+      document.documentElement.innerHTML = '';
+      window.location.replace('/logout');
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0f1115;color:#e6e6e6;font:14px/1.5 "Microsoft YaHei","PingFang SC",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#171a21;border-bottom:1px solid #242a33;flex:none;flex-wrap:wrap}
+  header h1{margin:0;font-size:16px;color:#38d9c0;font-weight:600}
+  .tabs{display:flex;gap:6px;margin-left:8px;flex-wrap:wrap}
+  .tab{background:#222833;color:#b9c2cf;border:1px solid #2e3644;padding:5px 12px;border-radius:5px;cursor:pointer;font-size:13px}
+  .tab.on{background:#16796b;border-color:#1f9e8c;color:#fff}
+  .spacer{flex:1}
+  select,button.btn{background:#222833;color:#dbe3ee;border:1px solid #2e3644;padding:5px 10px;border-radius:5px;cursor:pointer;font-size:13px}
+  button.btn:hover{border-color:#3f4b5e}
+  main{flex:1;display:flex;min-height:0}
+  aside{width:230px;flex:none;background:#141821;border-right:1px solid #242a33;overflow-y:auto;padding:8px}
+  aside h2{font-size:12px;color:#6f7b8c;margin:10px 4px 6px;font-weight:500;letter-spacing:.5px}
+  .cam{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;cursor:pointer;color:#c6cfdc;font-size:13px}
+  .cam:hover{background:#1d2431}
+  .cam.on{background:#16796b;color:#fff}
+  .cam input{accent-color:#19b39c}
+  .cam .new{font-size:10px;color:#f6ad55;border:1px solid #7b4a12;border-radius:3px;padding:0 3px;margin-left:auto}
+  section{flex:1;padding:8px;overflow:auto;min-width:0}
+  .grid{display:grid;gap:8px;height:100%}
+  .tile{position:relative;background:#000;border:1px solid #232a35;border-radius:6px;overflow:hidden;min-height:180px}
+  .tile iframe{width:100%;height:100%;border:0;display:block}
+  .cap{position:absolute;left:0;bottom:0;right:0;padding:3px 8px;background:rgba(0,0,0,.55);font-size:12px;color:#d7e0ec}
+  .empty{height:100%;display:flex;align-items:center;justify-content:center;color:#5d6a7b;font-size:14px}
+  .status{font-size:12px;color:#6f7b8c}
+  .toast{position:fixed;right:16px;bottom:16px;background:#16796b;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+  .toast.show{opacity:1}
+  .toast.err{background:#9b2c2c}
+</style>
+</head>
+<body>
+<header>
+  <h1>监控中心</h1>
+  <div class="tabs" id="tabs"></div>
+  <div class="spacer"></div>
+  <span class="status" id="status">加载中…</span>
+  <button class="btn" onclick="refreshAll(true)" title="重新读取摄像头配置">刷新列表</button>
+  <button class="btn" onclick="toggleAll()">全选/清空</button>
+</header>
+<main>
+  <aside id="list"></aside>
+  <section id="view"><div class="empty">左侧勾选摄像头即可查看</div></section>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+let GROUPS = [];          // [{id,name,channels:[{key,name,isNew}]}]
+let LABEL = {};
+let cur = 0;
+let lastSig = '';
+const picked = new Set();
+
+function toast(msg, err){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.className = 'toast', 2600);
+}
+
+// 把 /api/streams 里有、cameras.json 里没有的流，按前缀并进已有分组
+function mergeStreams(groups, keys){
+  const known = new Set();
+  groups.forEach(g => (g.channels||[]).forEach(c => known.add(c.key)));
+  const byPrefix = {};
+  groups.forEach((g, gi) => (g.channels||[]).forEach(c => {
+    const m = /^(.*_c)\d+$/.exec(c.key);
+    if (m) byPrefix[m[1]] = gi;
+  }));
+  let added = 0;
+  keys.forEach(k => {
+    if (known.has(k)) return;
+    const m = /^(.*_c)(\d+)$/.exec(k);
+    const gi = m ? byPrefix[m[1]] : undefined;
+    const ch = { key: k, name: m ? ('新通道 ' + m[2]) : k, isNew: true };
+    if (gi !== undefined) {
+      groups[gi].channels.push(ch);
+    } else {
+      let other = groups.find(g => g.id === '__other');
+      if (!other) { other = { id:'__other', name:'未分组', channels: [] }; groups.push(other); }
+      other.channels.push(ch);
+    }
+    added++;
+  });
+  return added;
+}
+
+async function fetchJson(url){
+  const r = await fetch(url, {cache:'no-store'});
+  if (!r.ok) throw new Error(url + ' -> ' + r.status);
+  return r.json();
+}
+
+async function refreshAll(showToast){
+  const st = document.getElementById('status');
+  let cfg = null, streams = null;
+  try {
+    const res = await Promise.all([
+      fetchJson('/cameras.json').catch(() => null),
+      fetchJson('/api/streams').catch(() => null)
+    ]);
+    cfg = res[0]; streams = res[1];
+  } catch (e) {}
+
+  if (!streams) { st.textContent = '接口异常'; if (showToast) toast('读取流列表失败', true); return; }
+  const keys = Object.keys(streams);
+  st.textContent = '在线，共 ' + keys.length + ' 路';
+
+  const base = (cfg && Array.isArray(cfg) && cfg.length)
+    ? JSON.parse(JSON.stringify(cfg))
+    : [{ id:'__other', name:'全部摄像头', channels: [] }];
+
+  const added = mergeStreams(base, keys);
+  const sig = JSON.stringify(base);
+
+  GROUPS = base;
+  LABEL = {};
+  base.forEach(g => (g.channels||[]).forEach(c => LABEL[c.key] = c.name));
+  if (cur >= GROUPS.length) cur = 0;
+
+  if (sig !== lastSig) {
+    lastSig = sig;
+    renderTabs(); renderList(); renderView();
+    if (added && showToast) toast('发现 ' + added + ' 个新画面');
+  }
+  if (showToast && !added) toast('已是最新，共 ' + keys.length + ' 路');
+}
+
+function renderTabs(){
+  document.getElementById('tabs').innerHTML = GROUPS.map((g,i) =>
+    `<button class="tab ${i===cur?'on':''}" onclick="switchNvr(${i})">${g.name}</button>`).join('');
+}
+function switchNvr(i){ cur = i; picked.clear(); renderTabs(); renderList(); renderView(); }
+function renderList(){
+  const g = GROUPS[cur] || {channels:[]};
+  document.getElementById('list').innerHTML = `<h2>${g.name}</h2>` + (g.channels||[]).map(c => `
+    <label class="cam ${picked.has(c.key)?'on':''}">
+      <input type="checkbox" ${picked.has(c.key)?'checked':''} onchange="pick('${c.key}',this.checked)">
+      <span>${c.name}</span>
+      ${c.isNew ? '<span class="new">新</span>' : ''}
+    </label>`).join('');
+}
+function pick(id, on){
+  on ? picked.add(id) : picked.delete(id);
+  if (picked.size > 9) picked.delete([...picked][0]);
+  renderList(); renderView();
+}
+function toggleAll(){
+  const all = ((GROUPS[cur]||{}).channels||[]).map(c=>c.key);
+  if (picked.size) picked.clear(); else all.slice(0,9).forEach(x=>picked.add(x));
+  renderList(); renderView();
+}
+function renderView(){
+  const ids = [...picked];
+  const v = document.getElementById('view');
+  if (!ids.length){ v.innerHTML = '<div class="empty">左侧勾选摄像头即可查看（最多 9 路）</div>'; return; }
+  const cols = ids.length === 1 ? 1 : (ids.length <= 4 ? 2 : 3);
+  v.innerHTML = `<div class="grid" style="grid-template-columns:repeat(${cols},1fr)">` + ids.map(id => `
+    <div class="tile">
+      <iframe src="/stream.html?src=${encodeURIComponent(id)}&mode=mse" allow="autoplay; fullscreen"></iframe>
+      <div class="cap">${LABEL[id]||id}</div>
+    </div>`).join('') + '</div>';
+}
+
+refreshAll(false);
+setInterval(() => refreshAll(false), 60000);
+</script>
+</body>
+</html>
