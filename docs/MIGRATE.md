@@ -16,7 +16,7 @@
 H28K 上唯一跟服务器相关的，是 `/etc/frp/frpc.toml` 里的这一行：
 
 ```toml
-serverAddr = "47.94.251.58"
+serverAddr = "1.2.3.4"
 ```
 
 换服务器 = 改这一行 + 重启 frpc。
@@ -25,33 +25,80 @@ serverAddr = "47.94.251.58"
 
 ## 方案 A：用域名（**最推荐**，以后换服务器零改动）
 
-### 一次性设置
+用域名之后，`serverAddr` 永远是 `frp.你的域名.com`，换服务器只是**改一条 DNS 记录**——
+设备不用登、不用改、不用重启，手机 App 里存的地址也不用改。
 
-1. 买个域名（任意注册商），在 DNS 里加一条 A 记录：
+### A1. 准备一个域名（三种来源，任选）
 
-   | 类型 | 主机记录 | 值 |
-   |---|---|---|
-   | A | `frp` | 当前云服务器 IP |
+| 来源 | 说明 | 成本 |
+|---|---|---|
+| 已有域名 | 直接在 DNS 服务商加记录 | 0 |
+| 新买 | 阿里云/腾讯云/Namesilo 等，`.top`/`.xyz` 一年十几块 | ~15 元/年 |
+| 免费二级域名 | DuckDNS（`xxx.duckdns.org`）等 | 0 |
 
-   得到 `frp.example.com`
+> **建议把 DNS 解析放在国内服务商**（阿里云 DNS / 腾讯 DNSPod）。国外 NS 在国内解析慢，
+> 偶尔被污染，会影响 frpc 启动时解析域名的速度。
 
-2. H28K 上改成用域名：
+### A2. 加一条 A 记录
+
+| 类型 | 主机记录 | 记录值 | TTL |
+|---|---|---|---|
+| A | `frp` | 当前云服务器 IP（如 `1.2.3.4`） | **300 秒** |
+
+得到 `frp.example.com`。
+
+- **TTL 一定要改短**：默认常是 600/3600 秒，换服务器那天会等到崩溃。300 秒足够。
+- 服务器 IP 会变（按量实例）的话，可以用 DDNS 脚本随服务器启动更新 A 记录。
+
+验证解析（在设备或自己电脑上）：
+
+```bash
+getent hosts frp.example.com        # Linux
+nslookup frp.example.com            # Windows
+```
+
+### A3. 把设备从 IP 切到域名（一次性，一条命令）
+
+```bash
+# H28K 上
+bash switch-server.sh frp.example.com
+```
+
+脚本会先打印「域名解析 → x.x.x.x」，确认解析对了再动手；之后备份、改 `serverAddr`、
+延迟重启、等 `start proxy success`，失败自动回滚。
+
+也可以一开始就用域名装：`deploy.sh` 向导里「服务器地址」直接填域名。
+
+### A4. 以后换服务器（三步，设备基本不用管）
+
+1. 新服务器执行 `bash server-setup.sh`（token 沿用旧的，或两边一起改）
+2. DNS 里把 `frp` 的 A 记录改成新 IP，等 TTL（≤5 分钟）
+3. 设备上让 frpc 重新解析域名：
 
    ```bash
-   bash switch-server.sh frp.example.com
+   bash switch-server.sh --restart-only
    ```
 
-之后 `config.env` 里 `VPS_ADDR` 也可以填域名，`install.sh` 直接支持。
+   这个模式**不改配置**，只做「确认解析 → 延迟重启 → 等隧道 → 失败回滚」。
 
-### 以后换服务器
+> 为什么还要重启一次？frpc 只在启动时解析域名，长期运行不会跟着 DNS 变。
+> 想彻底免手动，可以在设备上加定时任务：`0 4 * * * systemctl restart frpc`
+> （凌晨低峰自动重连，代价是断几秒）。
 
-**只改 DNS 的 A 记录**指向新 IP，等 TTL 生效（通常 10 分钟），frpc 会自己重连。
-H28K 上**什么都不用做**，浏览器地址还是一样的 `http://frp.example.com:11985`。
+### A5. 用域名的三个额外好处
 
-> TTL 建议设 300 秒或更短，切换时更快生效。
+1. **以后能上 HTTPS**：Let's Encrypt 不给纯 IP 签证书，有域名才能给 `11984/11985` 配证书
+2. **手机 App 里存的地址不用改**：换服务器后 App 照旧能用
+3. **不用记 IP**：`frp.example.com:11985` 比一串数字好记，也不怕 IP 变更
+
+### A6. 两个注意点
+
+- **备案**：服务器在中国大陆时，用域名对外提供 HTTP 服务按规定需要 ICP 备案。
+  用高端口（11985）通常不会被拦，但云厂商可能弹提醒；要长期稳定就备案，或把 frps 放境外。
+- **别把真实域名写进公开仓库**：本项目文档一律用 `frp.example.com` 占位，
+  你的真实域名只写在私下的《账号密码清单》里。
 
 ---
-
 ## 方案 B：新服务器一键装 frps（IP 直连）
 
 ### 第 1 步：新服务器上（约 2 分钟）
@@ -157,7 +204,7 @@ grep token /etc/frp/frps.toml      # 服务器 —— 必须完全相同
 十有八九是**新服务器没放行 12222**。补救方式：
 
 1. 到云控制台用「远程连接 / VNC」登录新服务器
-2. 或者让 H28K 恢复旧配置（需要内网访问：HDMI 或直连网线到 `192.168.86.x`）
+2. 或者让 H28K 恢复旧配置（需要内网访问：HDMI 或直连网线到 `192.168.1.x`）
 
 **预防**：切换前先确认 12222 已放行，`switch-server.sh` 会先预检 7000 但管不了 12222。
 
@@ -169,11 +216,14 @@ grep token /etc/frp/frps.toml      # 服务器 —— 必须完全相同
 ### 域名换了不生效
 
 ```bash
-# H28K 上确认解析到新 IP 了
+# 1) 设备上确认解析到新 IP 了
 getent hosts frp.example.com
+
+# 2) 解析对了但隧道还连着旧服务器 → 重启 frpc 重新解析
+bash switch-server.sh --restart-only
 ```
 
-没变就是 DNS 缓存，等 TTL 或 `systemctl restart frpc` 强制重连。
+解析结果还是旧 IP，就是 DNS 缓存没到期（等 TTL），或本地 `resolv.conf` 缓存。
 
 ### 想两台服务器同时在线（双活）
 
@@ -191,5 +241,6 @@ bash server-setup.sh                                   # 记下 TOKEN
 # H28K
 bash switch-server.sh 新IP --token TOKEN                # 自动切换+自检+失败回滚
 
-# 有域名的话，这两步都可以省略，只改 DNS 就行
+# 有域名的话：只改 DNS 的 A 记录，然后
+bash switch-server.sh --restart-only     # 设备上重新解析域名（不改配置）
 ```

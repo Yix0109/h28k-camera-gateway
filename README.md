@@ -90,6 +90,22 @@ sudo bash deploy.sh
 
 ## 换服务器（一条命令）
 
+**方案一：直接用域名（推荐）**
+
+安装时「服务器地址」填 `frp.example.com`，以后换服务器只改 DNS 的 A 记录：
+
+```bash
+# 1) 新服务器
+bash server-setup.sh                        # 记下 TOKEN
+
+# 2) DNS 里把 frp 的 A 记录改成新 IP，等 TTL（建议设 300 秒）
+
+# 3) 设备上让 frpc 重新解析（不改任何配置）
+bash switch-server.sh --restart-only
+```
+
+**方案二：IP 直连**
+
 ```bash
 # 新服务器
 bash server-setup.sh          # 记下新 TOKEN
@@ -98,11 +114,9 @@ bash server-setup.sh          # 记下新 TOKEN
 bash switch-server.sh 新IP --token 新TOKEN
 ```
 
-自动备份 → 预检端口 → 改配置 → **延迟重启（不断 SSH）** → 等待隧道建立 → **失败自动回滚**。
+两种都由脚本自动完成：备份 → 预检端口 → 改配置 → **延迟重启（不断 SSH）** → 等隧道建立 → **失败自动回滚**。
 
-> **更省心的做法**：一开始就用域名当服务器地址（`frp.example.com`）。
-> 以后换服务器**只改 DNS 的 A 记录**，设备上一行都不用动。
-> 详见 [docs/MIGRATE.md](docs/MIGRATE.md)
+> 域名方案的细节（TTL、备案、HTTPS）见 [docs/MIGRATE.md](docs/MIGRATE.md) 方案 A。
 
 ---
 

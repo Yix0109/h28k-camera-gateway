@@ -6,6 +6,7 @@
 #   bash switch-server.sh 新IP或域名
 #   bash switch-server.sh frp.example.com --token 新token
 #   bash switch-server.sh 1.2.3.4 --token xx --port 7000 --yes
+#   bash switch-server.sh --restart-only        # 域名没变、只改了 DNS 时用它
 #
 # 做的事：
 #   1) 备份 frpc.toml
@@ -15,13 +16,15 @@
 # =============================================================
 set -euo pipefail
 
-NEW_HOST="${1:-}"
-[ -n "$NEW_HOST" ] || { sed -n '1,16p' "$0"; exit 1; }
-shift || true
+NEW_HOST=""
+if [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; then
+  NEW_HOST="$1"; shift
+fi
 
 NEW_TOKEN=""
 NEW_PORT=""
 ASSUME_YES=0
+RESTART_ONLY=0
 TOML=/etc/frp/frpc.toml
 WAIT=${WAIT:-25}
 
@@ -29,11 +32,16 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --token) NEW_TOKEN="$2"; shift 2 ;;
     --port)  NEW_PORT="$2"; shift 2 ;;
+    --restart-only|--dns-changed) RESTART_ONLY=1; shift ;;
     --yes|-y) ASSUME_YES=1; shift ;;
     -h|--help) sed -n '1,16p' "$0"; exit 0 ;;
     *) echo "未知参数：$1"; exit 1 ;;
   esac
 done
+
+if [ "$RESTART_ONLY" != "1" ] && [ -z "$NEW_HOST" ]; then
+  sed -n '1,16p' "$0"; exit 1
+fi
 
 say(){ printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
 ok(){ echo "  ✔ $*"; }
@@ -46,10 +54,26 @@ die(){ printf '\033[1;31m[失败]\033[0m %s\n' "$*" >&2; exit 1; }
 STAMP=$(date +%Y%m%d-%H%M%S)
 OLD_HOST=$(grep -m1 '^serverAddr' "$TOML" | sed 's/.*"\(.*\)".*/\1/')
 OLD_TOKEN=$(grep -m1 '^auth.token' "$TOML" | sed 's/.*"\(.*\)".*/\1/')
+[ "$RESTART_ONLY" = "1" ] && NEW_HOST="$OLD_HOST"
 
 say "0. 当前 → 目标"
 echo "  旧服务器：$OLD_HOST"
 echo "  新服务器：$NEW_HOST"
+if [ "$RESTART_ONLY" = "1" ]; then
+  echo "  模式：仅重启（DNS 已改，让 frpc 重新解析域名）"
+fi
+
+# 域名先看一眼解析结果，避免“改完 DNS 还没生效”白折腾
+case "$NEW_HOST" in
+  *[a-zA-Z]*)
+    RESOLVED=$(getent hosts "$NEW_HOST" 2>/dev/null | awk '{print $1}' | head -1 || true)
+    if [ -n "$RESOLVED" ]; then
+      echo "  域名解析：$NEW_HOST → $RESOLVED"
+    else
+      echo "  域名解析：$NEW_HOST 解析失败（DNS 还没生效？稍等 TTL 再试）"
+    fi
+    ;;
+esac
 
 if [ "$ASSUME_YES" != "1" ]; then
   printf '\n确认切换？(yes/N) '
@@ -75,9 +99,13 @@ else
 fi
 
 say "3. 写入新配置"
-sed -i "s|^serverAddr = .*|serverAddr = \"$NEW_HOST\"|" "$TOML"
-[ -n "$NEW_PORT" ]  && sed -i "s|^serverPort = .*|serverPort = $NEW_PORT|" "$TOML"
-[ -n "$NEW_TOKEN" ] && sed -i "s|^auth.token = .*|auth.token = \"$NEW_TOKEN\"|" "$TOML"
+if [ "$RESTART_ONLY" = "1" ]; then
+  echo "  （仅重启模式，配置不变）"
+else
+  sed -i "s|^serverAddr = .*|serverAddr = \"$NEW_HOST\"|" "$TOML"
+  [ -n "$NEW_PORT" ]  && sed -i "s|^serverPort = .*|serverPort = $NEW_PORT|" "$TOML"
+  [ -n "$NEW_TOKEN" ] && sed -i "s|^auth.token = .*|auth.token = \"$NEW_TOKEN\"|" "$TOML"
+fi
 grep -E '^serverAddr|^serverPort|^auth.token' "$TOML" | sed 's/\(auth.token = "\).*/\1***"/'
 
 say "4. 延迟 3 秒重启 frpc（不切断当前 SSH）"
