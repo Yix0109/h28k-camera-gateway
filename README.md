@@ -48,19 +48,74 @@
 
 ---
 
-## 快速开始
+## 快速开始（傻瓜式，两条命令）
+
+### 第 1 步：云服务器装 frps
 
 ```bash
-# 1) 传到设备
-scp -r h28k-camera-gateway root@<设备IP>:/root/
+scp -r h28k-camera-gateway root@<云服务器IP>:/root/
+ssh root@<云服务器IP>
+cd /root/h28k-camera-gateway
+bash server-setup.sh
+```
 
-# 2) 改配置（至少 6 个值）
+跑完会打印 **TOKEN** 和要放行的端口。记下 TOKEN。
+（也会提示你去云控制台加安全组：`7000`、`11985`、`11984`、`12222`）
+
+### 第 2 步：设备上跑向导
+
+```bash
+scp -r h28k-camera-gateway root@<设备IP>:/root/
+ssh root@<设备IP>
+cd /root/h28k-camera-gateway
+sudo bash deploy.sh
+```
+
+向导只问 4 类问题：
+
+| 会问什么 | 说明 |
+|---|---|
+| 服务器地址 | IP 或域名。**填域名的话，以后换服务器只需改 DNS** |
+| frp TOKEN | 上一步打印的那串 |
+| 登录密码 | 中文台密码，至少 8 位 |
+| NVR 的 IP / 账号 / 密码 | 逐台添加，留空回车结束 |
+
+**它会自动做这些事**：
+- 探测每台 NVR 的通道数量和通道名（调 ISAPI，成功就自动填好）
+- 生成 `config.env`（不用手写）
+- 直接调用 `install.sh` 完成部署
+- 多台 NVR 密码不同也能各自对上（按 IP 精确写回）
+
+---
+
+## 换服务器（一条命令）
+
+```bash
+# 新服务器
+bash server-setup.sh          # 记下新 TOKEN
+
+# 设备上
+bash switch-server.sh 新IP --token 新TOKEN
+```
+
+自动备份 → 预检端口 → 改配置 → **延迟重启（不断 SSH）** → 等待隧道建立 → **失败自动回滚**。
+
+> **更省心的做法**：一开始就用域名当服务器地址（`frp.example.com`）。
+> 以后换服务器**只改 DNS 的 A 记录**，设备上一行都不用动。
+> 详见 [docs/MIGRATE.md](docs/MIGRATE.md)
+
+---
+
+## 快速开始（手动版）
+
+不想用向导、想自己控制每一个值时：
+
+```bash
+scp -r h28k-camera-gateway root@<设备IP>:/root/
 ssh root@<设备IP>
 cd /root/h28k-camera-gateway
 cp config.env.example config.env
 vi config.env        # VPS_ADDR / VPS_TOKEN / WEB_PASS / NVR_PASS / NVR1..N
-
-# 3) 部署
 sudo bash install.sh
 ```
 
@@ -152,15 +207,21 @@ systemctl status go2rtc nginx cam-auth frpc  # 四个服务都该是 active
 
 ```
 h28k-camera-gateway/
-├── install.sh              # 一键部署（幂等）
+├── deploy.sh               # ★ 傻瓜式部署向导（问几个问题就装完）
+├── server-setup.sh         # ★ 云服务器一键装 frps
+├── switch-server.sh        # ★ 换服务器（自动回滚）
+├── install.sh              # 底层安装脚本（幂等，被 deploy.sh 调用）
 ├── config.env.example      # 配置模板
 ├── authd/authd.py          # 会话认证 + 登录审计（Python3 标准库）
 ├── web/index.html          # 中文监控台
-├── tools/set-password.sh   # 一键改密码（三处同步）
-├── tools/enable-audit.sh   # 启用真实 IP + 审计日志（PROXY Protocol）
-├── bin/                    # 放 go2rtc / frpc 二进制（不入库）
+├── tools/
+│   ├── set-password.sh     # 一键改密码（三处同步）
+│   ├── enable-audit.sh     # 启用真实 IP + 审计日志（PROXY Protocol）
+│   └── fix-nvr-passwords.sh# 多台 NVR 不同密码时按 IP 校正
+├── bin/                    # 放 go2rtc / frpc / frps 二进制（不入库）
 └── docs/
     ├── DEPLOY.md           # 详细部署流程（含 frps 搭建）
+    ├── MIGRATE.md          # 换服务器 / 迁移指南
     └── TROUBLESHOOTING.md  # 排错手册
 ```
 
