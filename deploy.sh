@@ -18,10 +18,17 @@ say(){ printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
 hr(){ printf '%.0s-' {1..60}; echo; }
 die(){ printf '\033[1;31m[失败]\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || die "请用 root 执行（sudo bash deploy.sh）"
+[ "$(id -u)" -eq 0 ] || [ "${DRY:-0}" = "1" ] || die "请用 root 执行（sudo bash deploy.sh）"
 [ -f "$HERE/install.sh" ] || die "找不到 install.sh，请确认在项目目录里"
 
 AUTO=${DEPLOY_AUTO:-0}
+DRY=${DRY:-0}
+for a in "$@"; do
+  case "$a" in
+    --dry-run) DRY=1 ;;
+    --auto)    AUTO=1 ;;
+  esac
+done
 
 ask(){   # ask "提示" "默认值"
   local p="$1" d="${2:-}" v
@@ -152,7 +159,8 @@ CFG="$HERE/config.env"
   echo ""
   echo "NVR_USER=$NVRUSER_DEFAULT"
   echo ""
-  echo "# 各 NVR 的密码写在下面对应的 NVRn 行里"
+  echo "# 各台 NVR 的密码不写在这里：安装完成后 deploy.sh 会按 IP 逐台精确写回"
+  echo "# （密码含 @ : / # 等特殊字符也能正确处理）"
   echo ""
   echo "PORT_GO2RTC=11984"
   echo "PORT_CAMWEB=11985"
@@ -172,7 +180,6 @@ CFG="$HERE/config.env"
     else
       echo "NVR$i=\"$ip|$label|$ch|\""
     fi
-    echo "#NVR${i}_PASS=$pass"
     i=$((i+1))
   done
 } > "$CFG"
@@ -194,12 +201,26 @@ sed -i "s|^NVR_USER=.*|NVR_USER=$FIRSTUSER|" "$CFG"
 grep -q '^NVR_PASS=' "$CFG" || echo "NVR_PASS=$FIRSTPASS" >> "$CFG"
 
 # 记录每台的真实密码，install 完成后按 IP 精确写回（多台密码不同也能对）
-: > /root/nvr-passwords.txt
-for row in "${NVRCFG[@]}"; do
-  IFS='|' read -r ip user pass label ch nm <<< "$row"
-  printf '%s\t%s\n' "$ip" "$pass" >> /root/nvr-passwords.txt
-done
-chmod 600 /root/nvr-passwords.txt
+if [ "$DRY" != "1" ]; then
+  MAPF=/root/nvr-passwords.txt
+  if ! : > "$MAPF" 2>/dev/null; then
+    MAPF="${TMPDIR:-/tmp}/nvr-passwords.txt"
+    : > "$MAPF"
+  fi
+  for row in "${NVRCFG[@]}"; do
+    IFS='|' read -r ip user pass label ch nm <<< "$row"
+    printf '%s\t%s\n' "$ip" "$pass" >> "$MAPF"
+  done
+  chmod 600 "$MAPF" 2>/dev/null || true
+  PVFILE="$MAPF"
+fi
+
+if [ "$DRY" = "1" ]; then
+  echo
+  echo "  [dry-run] 配置已写入 $CFG，未执行安装。"
+  echo "  正式部署： sudo bash install.sh"
+  exit 0
+fi
 
 if [ "$AUTO" != "1" ]; then
   echo
@@ -216,7 +237,7 @@ RC=$?
 
 if [ "$RC" -eq 0 ]; then
   say "按 IP 校正各台 NVR 的密码（特殊字符自动 URL 编码）"
-  bash "$HERE/tools/fix-nvr-passwords.sh" /root/nvr-passwords.txt || true
+  bash "$HERE/tools/fix-nvr-passwords.sh" "${PVFILE:-/root/nvr-passwords.txt}" || true
 fi
 
 if [ "$RC" -eq 0 ]; then
