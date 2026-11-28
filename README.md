@@ -221,6 +221,14 @@ systemctl status go2rtc nginx cam-auth frpc  # 四个服务都该是 active
 
 加/删摄像头：改 `config.env` 的 `NVR*` → `bash install.sh`（幂等）。
 
+改站点名称（浏览器标签 + 页面大标题 + 登录框，三处一起变，**不用重装**）：
+
+```bash
+sudo bash tools/set-site-name.sh "长沙分公司监控"
+sudo bash tools/set-site-name.sh "长沙分公司监控" "某某公司 安防监控系统"   # 第二个参数是登录框底部小字
+sudo bash tools/set-site-name.sh                                          # 不带参数=看当前名称
+```
+
 ### 多个现场共用一台云服务器
 
 端口和 frp 隧道名都要区分，完整对照见 [docs/TWO-SITES.md](docs/TWO-SITES.md)。要点：
