@@ -1,6 +1,6 @@
 # 摄像头网关 · go2rtc + frp + 中文监控台
 
-把厂区/门店的**录像机（NVR / IPC，任何支持标准 RTSP 的品牌）**变成**外网可看的低延迟网页监控**，跑在一台便宜的常开小机器上——**arm64 / amd64 都行，不挑型号**（本仓库在 HINLINK H28K / RK3528 上验证过）。默认支持**多台录像机、每台多路通道**。
+把厂区/门店的**录像机（NVR / IPC，任何支持标准 RTSP 的品牌）**变成**外网可看的低延迟网页监控**，跑在一台便宜的常开小机器上——**arm64 / amd64 都行，不挑型号**（本仓库在 arm64 小主机上实测过 38 路流）。默认支持**多台录像机、每台多路通道**。
 
 ```
 ┌─────────┐   RTSP    ┌──────────────────────────┐   frp    ┌──────────┐   浏览器
@@ -53,9 +53,9 @@
 ### 第 1 步：云服务器装 frps
 
 ```bash
-scp -r h28k-camera-gateway root@<云服务器IP>:/root/
+scp -r camera-gateway root@<云服务器IP>:/root/
 ssh root@<云服务器IP>
-cd /root/h28k-camera-gateway
+cd /root/camera-gateway
 bash server-setup.sh
 ```
 
@@ -65,9 +65,9 @@ bash server-setup.sh
 ### 第 2 步：设备上跑向导
 
 ```bash
-scp -r h28k-camera-gateway root@<设备IP>:/root/
+scp -r camera-gateway root@<设备IP>:/root/
 ssh root@<设备IP>
-cd /root/h28k-camera-gateway
+cd /root/camera-gateway
 sudo bash deploy.sh
 ```
 
@@ -125,9 +125,9 @@ bash switch-server.sh 新IP --token 新TOKEN
 不想用向导、想自己控制每一个值时：
 
 ```bash
-scp -r h28k-camera-gateway root@<设备IP>:/root/
+scp -r camera-gateway root@<设备IP>:/root/
 ssh root@<设备IP>
-cd /root/h28k-camera-gateway
+cd /root/camera-gateway
 cp config.env.example config.env
 vi config.env        # VPS_ADDR / VPS_TOKEN / WEB_PASS / SITE_NAME / NVR_PASS / NVR1..N
 sudo bash install.sh
@@ -245,7 +245,7 @@ sudo bash tools/set-site-name.sh                                          # 不�
 ## 目录结构
 
 ```
-h28k-camera-gateway/
+camera-gateway/
 ├── deploy.sh               # ★ 傻瓜式部署向导（问几个问题就装完）
 ├── server-setup.sh         # ★ 云服务器一键装 frps
 ├── switch-server.sh        # ★ 换服务器（自动回滚）

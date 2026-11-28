@@ -71,7 +71,7 @@
 | 端口白名单 | `allowPorts = 10000~30000` |
 
 ```bash
-curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Yix0109/h28k-camera-gateway/main/server-setup.sh -o /tmp/s.sh
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Yix0109/camera-gateway/main/server-setup.sh -o /tmp/s.sh
 sudo bash /tmp/s.sh
 ```
 

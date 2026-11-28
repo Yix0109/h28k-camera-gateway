@@ -1,6 +1,6 @@
 # 换服务器 / 迁移指南
 
-三种换法，按你的情况选一种。**都只需要在云服务器和 H28K 上各跑一条命令**，摄像头和 NVR 完全不用动。
+三种换法，按你的情况选一种。**都只需要在云服务器和 设备 上各跑一条命令**，摄像头和 NVR 完全不用动。
 
 ---
 
@@ -9,11 +9,11 @@
 整个系统只有**一个"出口"**是跟服务器绑定的：
 
 ```
-海康 NVR ──RTSP──▶ H28K（go2rtc + 中文台） ──frpc──▶ 云服务器（frps）──▶ 浏览器
+海康 NVR ──RTSP──▶ 设备（go2rtc + 中文台） ──frpc──▶ 云服务器（frps）──▶ 浏览器
                       ↑ 配置都在这里，不用动          ↑ 只有这里会变
 ```
 
-H28K 上唯一跟服务器相关的，是 `/etc/frp/frpc.toml` 里的这一行：
+设备 上唯一跟服务器相关的，是 `/etc/frp/frpc.toml` 里的这一行：
 
 ```toml
 serverAddr = "1.2.3.4"
@@ -60,7 +60,7 @@ nslookup frp.example.com            # Windows
 ### A3. 把设备从 IP 切到域名（一次性，一条命令）
 
 ```bash
-# H28K 上
+# 设备 上
 bash switch-server.sh frp.example.com
 ```
 
@@ -105,9 +105,9 @@ bash switch-server.sh frp.example.com
 
 ```bash
 # 把整个项目目录 scp 上去，或者只拷 server-setup.sh
-scp -r h28k-camera-gateway root@新服务器IP:/root/
+scp -r camera-gateway root@新服务器IP:/root/
 ssh root@新服务器IP
-cd /root/h28k-camera-gateway
+cd /root/camera-gateway
 bash server-setup.sh
 ```
 
@@ -129,7 +129,7 @@ bash server-setup.sh
 | TCP | 11984 | go2rtc 原版打不开 |
 | TCP | 12222 | 外网 SSH 失联（只能走内网或 VNC） |
 
-### 第 3 步：H28K 上切过去（一条命令）
+### 第 3 步：设备 上切过去（一条命令）
 
 ```bash
 bash switch-server.sh 新服务器IP --token 刚才的TOKEN
@@ -184,7 +184,7 @@ nohup sh -c 'sleep 3; systemctl restart frpc' >/dev/null 2>&1 &
 按顺序查：
 
 ```bash
-# 1) H28K 上 frpc 活着吗
+# 1) 设备 上 frpc 活着吗
 systemctl is-active frpc
 journalctl -u frpc -n 30 | grep -E "start proxy|error"
 
@@ -193,7 +193,7 @@ systemctl is-active frps
 ss -lntp | grep 7000
 
 # 3) token 两边一致吗
-grep token /etc/frp/frpc.toml      # H28K
+grep token /etc/frp/frpc.toml      # 设备
 grep token /etc/frp/frps.toml      # 服务器 —— 必须完全相同
 ```
 
@@ -204,7 +204,7 @@ grep token /etc/frp/frps.toml      # 服务器 —— 必须完全相同
 十有八九是**新服务器没放行 12222**。补救方式：
 
 1. 到云控制台用「远程连接 / VNC」登录新服务器
-2. 或者让 H28K 恢复旧配置（需要内网访问：HDMI 或直连网线到 `192.168.1.x`）
+2. 或者让 设备 恢复旧配置（需要内网访问：HDMI 或直连网线到 `192.168.1.x`）
 
 **预防**：切换前先确认 12222 已放行，`switch-server.sh` 会先预检 7000 但管不了 12222。
 
@@ -238,7 +238,7 @@ frpc 只支持一个 `serverAddr`。要双活得跑两个 frpc 实例（不同�
 # 新服务器
 bash server-setup.sh                                   # 记下 TOKEN
 
-# H28K
+# 设备
 bash switch-server.sh 新IP --token TOKEN                # 自动切换+自检+失败回滚
 
 # 有域名的话：只改 DNS 的 A 记录，然后

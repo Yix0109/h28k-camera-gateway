@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================
-# H28K 监控系统：启用真实 IP + 登录审计日志
+# 监控系统：启用真实 IP + 登录审计日志
 #
 # 做三件事：
 #   1) frp 隧道开 PROXY Protocol v2，让 nginx 拿到访客真实 IP
@@ -9,7 +9,7 @@
 #      格式：时间  IP  用户名  结果  客户端
 #   3) logrotate 保留 30 天
 #
-# 用法：sudo bash h28k-enable-audit.sh
+# 用法：sudo bash enable-audit.sh
 # 失败会自动回滚 frp 配置并重启服务。
 # =============================================================
 set -u
@@ -162,7 +162,7 @@ LOGIN_HTML = """<!DOCTYPE html>
   <input name="password" type="password" required>
   {err}
   <button type="submit">登 录</button>
-  <div class="foot">H28K 监控系统</div>
+  <div class="foot">监控系统</div>
 </form>
 </body></html>"""
 

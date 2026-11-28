@@ -14,7 +14,7 @@
 
 ### 1.1 装系统（示例：Rockchip 小板用 Armbian）
 
-以 H28K（RK3528A）为例，用官方 **Armbian Bookworm** 镜像通过 Maskrom（RKDevTool）刷入 eMMC：
+以 一台 Rockchip 小板（RK3528A）为例，用官方 **Armbian Bookworm** 镜像通过 Maskrom（RKDevTool）刷入 eMMC：
 
 1. 断电，卡针按住机身 Reset 孔
 2. 插 USB-C **数据线**到电脑，松开卡针
@@ -128,10 +128,10 @@ curl -s -m 8 --digest -u admin:你的NVR密码 \
 
 ```bash
 # 电脑上
-scp -r h28k-camera-gateway root@192.168.1.50:/root/
+scp -r camera-gateway root@192.168.1.50:/root/
 
 # 设备上
-cd /root/h28k-camera-gateway
+cd /root/camera-gateway
 cp config.env.example config.env
 vi config.env          # 至少改 VPS_ADDR / VPS_TOKEN / WEB_PASS / NVR_PASS / NVR1
 sudo bash install.sh

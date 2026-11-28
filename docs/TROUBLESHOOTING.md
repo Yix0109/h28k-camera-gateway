@@ -1,6 +1,6 @@
 # 排错手册
 
-按「现象 → 原因 → 处理」查。命令都在设备（H28K）上执行，除非特别说明。
+按「现象 → 原因 → 处理」查。命令都在设备上执行，除非特别说明。
 
 ---
 
@@ -148,7 +148,7 @@ audio:AAC, audio:PCMA, audio:PCMU, ...
 **改法一：脚本一键改（推荐，批量）**
 
 ```bash
-curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Yix0109/h28k-camera-gateway/main/tools/fix-codec.sh -o /tmp/fix.sh
+curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Yix0109/camera-gateway/main/tools/fix-codec.sh -o /tmp/fix.sh
 bash /tmp/fix.sh
 ```
 
