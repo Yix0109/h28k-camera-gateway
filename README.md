@@ -192,13 +192,17 @@ NVR3="192.168.1.254|三号机|1,2,3,4|通道1,通道2,通道3,通道4"
 
 1. **国内装依赖会失败**：`deb.debian.org` 常 404/超时，`install.sh` 会自动换清华源并停用 `armbian.sources`。若仍失败，手动改 `/etc/apt/sources.list.d/*.sources`。
 2. **GitHub 直连下不动**：脚本走 `ghfast.top` 代理；还不行就在电脑上下好 `go2rtc_linux_arm64`、`frpc_linux_arm64` 放进 `bin/`。
-3. **主码流多为 H.265，浏览器放不出**：网页统一用 `…02` 子码流（H.264）。要清晰度就把该行改 `…01`，但带宽 ×5。
+3. **子码流也常是 H.265，浏览器放不出**：海康新固件出厂把子码流也设成 H.265，页面会报
+   `mse: streams: codecs not matched: video:H265 => video:H264`。用 `bash tools/fix-codec.sh`
+   一键改成 H.264（或到 NVR 后台 → 配置 → 视频 → 子码流 → 视频编码 改 H.264）。详见
+   [docs/TROUBLESHOOTING.md#h265-通道黑屏最常见](docs/TROUBLESHOOTING.md)。
 4. **带宽**：一路子码流约 0.5–1 Mbps，云服务器 5 Mbps 只能同时看 2–3 路。
 5. **远程改 frp 会断自己的 SSH**：`systemctl restart frpc` 会重启承载 SSH 的隧道。请用延迟重启：
    `nohup sh -c 'sleep 3; systemctl restart frpc' >/dev/null 2>&1 &`
 6. **刷新即登出**是有意设计（严格会话），不是 bug。
 7. **`cam-authd` 重启 = 全员掉线**（会话在内存里），改密码后需要重新登录。
-8. **同一台 VPS 跑多套**：`PORT_*` 和 frp 的 `name` 都必须唯一，否则 frps 会踢掉同名隧道。
+8. **同一台 VPS 跑多套**：`PORT_*` 和 frp 的 `name` 都必须唯一（用 `PROXY_PREFIX` 区分），
+   否则 frps 会报 `proxy [xxx] already exists` 并踢掉同名隧道。
 
 更多见 [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)。
 
