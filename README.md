@@ -219,6 +219,17 @@ systemctl status go2rtc nginx cam-auth frpc  # 四个服务都该是 active
 
 加/删摄像头：改 `config.env` 的 `NVR*` → `bash install.sh`（幂等）。
 
+### 多个现场共用一台云服务器
+
+端口和 frp 隧道名都要区分，完整对照见 [docs/TWO-SITES.md](docs/TWO-SITES.md)。要点：
+
+| 差异 | 现场 A | 现场 B |
+|---|---|---|
+| 公网端口 | 11984 / 11985 / 12222 | 12984 / 12985 / 12922 |
+| `PROXY_PREFIX` | 空 | `"ff-"` |
+
+不加 `PROXY_PREFIX` 的话，frps 会报 `proxy [camweb] already exists`，后装的现场公网全部不通。
+
 ---
 
 ## 目录结构
