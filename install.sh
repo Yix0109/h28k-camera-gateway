@@ -37,6 +37,12 @@ PORT_WEB_BASE="${PORT_WEB_BASE:-18443}"
 PORT_SDK_BASE="${PORT_SDK_BASE:-18000}"
 PORT_RTSP_BASE="${PORT_RTSP_BASE:-18554}"
 KEEP_NVR_TUNNELS="${KEEP_NVR_TUNNELS:-1}"
+# 站点名称（可自定义）：
+#   SITE_NAME 显示在浏览器标签页、页面左上角标题、登录框标题
+#   SITE_FOOT 登录框底部那行小字，留空则与 SITE_NAME 相同
+# 想改成「XX公司监控」就写 SITE_NAME="XX公司监控"
+SITE_NAME="${SITE_NAME:-监控中心}"
+SITE_FOOT="${SITE_FOOT:-}"
 PROXY_PROTOCOL="${PROXY_PROTOCOL:-1}"   # 1=用 PROXY Protocol 拿真实 IP（需 frps>=0.53）
 # 同一台 frps 上跑多个站点时，隧道名必须唯一，否则报 proxy [xxx] already exists
 # 总厂留空即可；分公司/第二个点写个前缀，例如 PROXY_PREFIX="ff-"
@@ -179,7 +185,9 @@ python3 -c "import json;json.load(open('$JSON'))" && ok "cameras.json 校验通�
 # ---------- 4. 中文页面 ----------
 say "4. 中文监控台页面"
 install -m 0644 "$HERE/web/index.html" /opt/cam/www/index.html
-ok "/opt/cam/www/index.html"
+# 站点名称替换：页面里的 __SITE__ 换成 config.env 的 SITE_NAME
+sed -i "s|__SITE__|$(printf '%s' "$SITE_NAME" | sed 's/[&|\\]/\\&/g')|g" /opt/cam/www/index.html
+ok "/opt/cam/www/index.html（标题：$SITE_NAME）"
 
 # ---------- 5. 会话认证服务 ----------
 say "5. cam-authd（会话认证 + 登录审计）"
@@ -194,6 +202,8 @@ AUTHD_PASS=$WEB_PASS
 AUTHD_MAX_FAIL=10
 AUTHD_FAIL_WINDOW=600
 AUTHD_BAN=30
+AUTHD_SITE="$SITE_NAME"
+AUTHD_FOOT="$SITE_FOOT"
 EOF
 chmod 600 /etc/cam-authd.env
 umask 022

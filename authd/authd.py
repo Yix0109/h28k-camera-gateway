@@ -24,6 +24,12 @@ FAIL_WINDOW = int(os.environ.get("AUTHD_FAIL_WINDOW", "600"))
 BAN_SECONDS = int(os.environ.get("AUTHD_BAN", "30"))
 AUDIT_LOG   = os.environ.get("AUTHD_LOG", "/var/log/cam-auth.log")
 
+# 站点名称（可自定义）：显示在浏览器标签、登录框标题、登录框底部小字
+#   AUTHD_SITE  页面主标题，默认「监控中心」
+#   AUTHD_FOOT  登录框底部那行小字，留空则与主标题相同
+SITE_NAME   = (os.environ.get("AUTHD_SITE", "监控中心") or "").strip() or "监控中心"
+SITE_FOOT   = (os.environ.get("AUTHD_FOOT", "") or "").strip() or SITE_NAME
+
 sessions = {}
 fails = {}
 bans = {}
@@ -83,7 +89,7 @@ def session_ok(handler):
 LOGIN_HTML = """<!DOCTYPE html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>登录 · 监控中心</title>
+<title>登录 · __SITE__</title>
 <style>
   *{{box-sizing:border-box}}
   body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
@@ -104,7 +110,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 </style></head>
 <body>
 <form class="card" method="post" action="/login" autocomplete="off">
-<h1>监控中心</h1>
+<h1>__SITE__</h1>
 <p class="sub">请登录后查看（刷新页面需重新登录）</p>
 <label>用户名</label>
   <input name="username" value="{user}" autofocus required>
@@ -112,7 +118,7 @@ LOGIN_HTML = """<!DOCTYPE html>
   <input name="password" type="password" required>
   {err}
 <button type="submit">登录</button>
-<div class="foot">H28K 监控系统</div>
+<div class="foot">__FOOT__</div>
 </form>
 </body></html>"""
 
@@ -150,6 +156,8 @@ class Handler(BaseHTTPRequestHandler):
         body = LOGIN_HTML.format(
             user=html.escape(user),
             err=('<div class="err">%s</div>' % html.escape(err)) if err else "")
+        # 站点名称可自定义（来自 AUTHD_SITE / AUTHD_FOOT），用占位符替换避免和 CSS 的 {} 冲突
+        body = body.replace("__SITE__", html.escape(SITE_NAME)).replace("__FOOT__", html.escape(SITE_FOOT))
         self.send_html(code, body)
 
     def do_GET(self):

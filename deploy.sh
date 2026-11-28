@@ -53,7 +53,7 @@ probe_channels(){  # probe_channels IP USER PASS  → 输出 "1,2,3,4" 与名称
 
 echo
 hr
-echo "   H28K 摄像头网关 · 部署向导"
+echo "   摄像头网关 · 部署向导"
 hr
 if [ "$AUTO" != "1" ]; then
   echo "   按提示填写即可，不知道的直接回车用默认值。"
@@ -87,6 +87,14 @@ if [ -n "${WEB_PASS:-}" ]; then WP="$WEB_PASS"; echo "   （已从环境变量�
   done
 fi
 [ "${#WP}" -ge 8 ] || die "密码至少 8 位"
+
+# 站点名称（显示在浏览器标签、页面左上角、登录框）
+if [ "$AUTO" = "1" ] || [ -n "${SITE_NAME:-}" ]; then
+  SN="${SITE_NAME:-监控中心}"; echo "   站点名称：$SN"
+else
+  SN=$(ask "   站点名称（显示在页面标题上）" "监控中心")
+fi
+[ -n "$SN" ] || SN="监控中心"
 
 # ---------- 3. 摄像头 ----------
 say "3/4 摄像头 / NVR"
@@ -161,6 +169,9 @@ CFG="$HERE/config.env"
   echo ""
   echo "WEB_USER=admin"
   echo "WEB_PASS=$WP"
+  echo ""
+  echo "# 显示在浏览器标签、页面左上角标题、登录框标题"
+  echo "SITE_NAME=$SN"
   echo ""
   echo "NVR_USER=$NVRUSER_DEFAULT"
   echo ""

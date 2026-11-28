@@ -129,7 +129,7 @@ scp -r h28k-camera-gateway root@<设备IP>:/root/
 ssh root@<设备IP>
 cd /root/h28k-camera-gateway
 cp config.env.example config.env
-vi config.env        # VPS_ADDR / VPS_TOKEN / WEB_PASS / NVR_PASS / NVR1..N
+vi config.env        # VPS_ADDR / VPS_TOKEN / WEB_PASS / SITE_NAME / NVR_PASS / NVR1..N
 sudo bash install.sh
 ```
 
@@ -146,6 +146,8 @@ VPS_CTRL_PORT=7000
 
 WEB_USER=admin
 WEB_PASS=改成强密码               # 中文台登录密码（至少 8 位）
+SITE_NAME=监控中心                # 可自定义：浏览器标签 + 页面标题 + 登录框标题
+# SITE_FOOT=某某公司 安防监控系统   # 登录框底部小字，留空则与 SITE_NAME 相同
 NVR_USER=admin
 NVR_PASS=摄像头密码
 
