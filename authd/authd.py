@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-cam-authd 鈥斺€?涓枃鐩戞帶鍙扮殑涓ユ牸浼氳瘽璁よ瘉鏈嶅姟锛堝惈鐧诲綍瀹¤锛?鐩戝惉 127.0.0.1:9000锛岀敱 nginx 鐨?auth_request 璋冪敤銆?
-浼氳瘽瑙勫垯锛?  路 浼氳瘽绾?Cookie锛堜笉甯?Max-Age / Expires锛?  路 浼氳瘽鍙瓨鏈嶅姟绔唴瀛?  路 鍚?IP 杩炵画 10 娆″瘑鐮侀敊 鈫?閿?30 绉?  路 鐧诲綍鎴愬姛/澶辫触/琚攣/鐧诲嚭 鍏ㄩ儴鍐欏叆 /var/log/cam-auth.log
+cam-authd — 中文监控台的严格会话认证服务（含登录审计）。监听 127.0.0.1:9000，由 nginx 的 auth_request 调用。
+会话规则：会话级 Cookie（不设 Max-Age / Expires）；会话只存服务端内存；同 IP 连续 10 次密码错 → 锁 30 秒；登录成功/失败/被锁/登出 全部写入 /var/log/cam-auth.log
 """
 import os
 import sys
@@ -41,7 +41,7 @@ def client_ip(handler):
     return handler.client_address[0]
 
 def audit(ip, user, result, handler=None):
-    """涓€琛屼竴鏉★細鏃堕棿\tIP\t鐢ㄦ埛鍚峔t缁撴灉\tUA"""
+    """一行一条：时间\tIP\t用户名\t结果\tUA"""
     ua = ""
     if handler is not None:
         ua = (handler.headers.get("User-Agent") or "")[:120].replace("\t", " ")
@@ -83,7 +83,7 @@ def session_ok(handler):
 LOGIN_HTML = """<!DOCTYPE html>
 <html lang="zh-CN"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>鐧诲綍 路 鐩戞帶涓績</title>
+<title>登录 · 监控中心</title>
 <style>
   *{{box-sizing:border-box}}
   body{{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
@@ -104,15 +104,15 @@ LOGIN_HTML = """<!DOCTYPE html>
 </style></head>
 <body>
 <form class="card" method="post" action="/login" autocomplete="off">
-  <h1>鐩戞帶涓績</h1>
-  <p class="sub">璇风櫥褰曞悗鏌ョ湅锛堝埛鏂伴〉闈㈤渶閲嶆柊鐧诲綍锛?/p>
-  <label>鐢ㄦ埛鍚?/label>
+<h1>监控中心</h1>
+<p class="sub">请登录后查看（刷新页面需重新登录）</p>
+<label>用户名</label>
   <input name="username" value="{user}" autofocus required>
-  <label>瀵嗙爜</label>
+<label>密码</label>
   <input name="password" type="password" required>
   {err}
-  <button type="submit">鐧?褰?/button>
-  <div class="foot">H28K 鐩戞帶绯荤粺</div>
+<button type="submit">登录</button>
+<div class="foot">H28K 监控系统</div>
 </form>
 </body></html>"""
 
@@ -121,7 +121,8 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
-        # 涓嶈褰?/auth 瀛愯姹傦紙姣忎釜闈欐€佽祫婧愰兘浼氳Е鍙戯紝鍣煶澶ぇ锛?        if self.path.startswith("/auth"):
+        # /auth 是 nginx 每请求都要打的子请求，不记录，避免刷屏
+        if self.path.startswith("/auth"):
             return
         sys.stderr.write("%s - %s\n" % (client_ip(self), fmt % args))
 
@@ -188,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
         if until > now():
             left = int(until - now()) + 1
             audit(ip, "-", "LOCKED", self)
-            self.login_page(429, "瀵嗙爜閿欒娆℃暟杩囧锛岃 %d 绉掑悗鍐嶈瘯" % left)
+            self.login_page(429, "密码错误次数过多，请 %d 秒后再试" % left)
             return
 
         length = int(self.headers.get("Content-Length") or 0)
@@ -214,14 +215,14 @@ class Handler(BaseHTTPRequestHandler):
             bans[ip] = now() + BAN_SECONDS
             fails.pop(ip, None)
             audit(ip, user, "BAD_PWD->LOCKED", self)
-            self.login_page(429, "瀵嗙爜閿欒娆℃暟杩囧锛岃 %d 绉掑悗鍐嶈瘯" % BAN_SECONDS)
+            self.login_page(429, "密码错误次数过多，请 %d 秒后再试" % BAN_SECONDS)
             return
         audit(ip, user, "BAD_PWD", self)
-        self.login_page(401, "鐢ㄦ埛鍚嶆垨瀵嗙爜閿欒锛岃繕鍙皾璇?%d 娆? % left)
+        self.login_page(401, "用户名或密码错误，还可尝试 %d 次" % left)
 
 def main():
     if not PASSWORD:
-        sys.exit("AUTHD_PASS 鏈缃?)
+        sys.exit("AUTHD_PASS 未设置")
     open(AUDIT_LOG, "a").close()
     try:
         os.chmod(AUDIT_LOG, 0o600)
