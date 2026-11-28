@@ -38,6 +38,9 @@ PORT_SDK_BASE="${PORT_SDK_BASE:-18000}"
 PORT_RTSP_BASE="${PORT_RTSP_BASE:-18554}"
 KEEP_NVR_TUNNELS="${KEEP_NVR_TUNNELS:-1}"
 PROXY_PROTOCOL="${PROXY_PROTOCOL:-1}"   # 1=用 PROXY Protocol 拿真实 IP（需 frps>=0.53）
+# 同一台 frps 上跑多个站点时，隧道名必须唯一，否则报 proxy [xxx] already exists
+# 总厂留空即可；分公司/第二个点写个前缀，例如 PROXY_PREFIX="ff-"
+PROXY_PREFIX="${PROXY_PREFIX:-}"
 
 [ "${#WEB_PASS}" -ge 8 ] || die "WEB_PASS 至少 8 位"
 
@@ -314,14 +317,14 @@ fi
   echo "auth.token = \"$VPS_TOKEN\""
   echo ""
   echo "[[proxies]]"
-  echo 'name = "go2rtc"'
+  echo "name = \"${PROXY_PREFIX}go2rtc\""
   echo 'type = "tcp"'
   echo 'localIP = "127.0.0.1"'
   echo "localPort = 1984"
   echo "remotePort = $PORT_GO2RTC"
   echo ""
   echo "[[proxies]]"
-  echo 'name = "camweb"'
+  echo "name = \"${PROXY_PREFIX}camweb\""
   echo 'type = "tcp"'
   echo 'localIP = "127.0.0.1"'
   echo "localPort = $CAM_LOCAL"
@@ -329,7 +332,7 @@ fi
   [ -n "$CAM_TRANSPORT" ] && echo "$CAM_TRANSPORT"
   echo ""
   echo "[[proxies]]"
-  echo 'name = "ssh"'
+  echo "name = \"${PROXY_PREFIX}ssh\""
   echo 'type = "tcp"'
   echo 'localIP = "127.0.0.1"'
   echo "localPort = 22"
@@ -342,9 +345,9 @@ fi
       ip=$(echo "${!var}" | cut -d'|' -f1)
       idx=$((idx+1))
       wp=$((PORT_WEB_BASE + idx - 1)); sp=$((PORT_SDK_BASE + idx - 1)); rp=$((PORT_RTSP_BASE + idx - 1))
-      printf '\n[[proxies]]\nname = "nvr%dweb"\ntype = "tcp"\nlocalIP = "%s"\nlocalPort = 80\nremotePort = %d\n' "$idx" "$ip" "$wp"
-      printf '\n[[proxies]]\nname = "nvr%dsdk"\ntype = "tcp"\nlocalIP = "%s"\nlocalPort = 8000\nremotePort = %d\n' "$idx" "$ip" "$sp"
-      printf '\n[[proxies]]\nname = "nvr%drtsp"\ntype = "tcp"\nlocalIP = "%s"\nlocalPort = 554\nremotePort = %d\n' "$idx" "$ip" "$rp"
+      printf '\n[[proxies]]\nname = "%snvr%dweb"\ntype = "tcp"\nlocalIP = "%s"\nlocalPort = 80\nremotePort = %d\n' "$PROXY_PREFIX" "$idx" "$ip" "$wp"
+      printf '\n[[proxies]]\nname = "%snvr%dsdk"\ntype = "tcp"\nlocalIP = "%s"\nlocalPort = 8000\nremotePort = %d\n' "$PROXY_PREFIX" "$idx" "$ip" "$sp"
+      printf '\n[[proxies]]\nname = "%snvr%drtsp"\ntype = "tcp"\nlocalIP = "%s"\nlocalPort = 554\nremotePort = %d\n' "$PROXY_PREFIX" "$idx" "$ip" "$rp"
     done
   fi
 } > /etc/frp/frpc.toml
