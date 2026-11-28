@@ -134,7 +134,11 @@ JSON=/opt/cam/www/cameras.json
 
 echo "[" > "$JSON"
 first_nvr=1
-for i in 1 2 3 4 5 6 7 8; do
+# 支持任意台录像机：这里扫 NVR1 ~ NVR99，config.env 里写了几台就装几台（空的自动跳过）
+# ★ 要再加一台：在 config.env 里照格式复制一行，序号往上排即可，例如
+#     NVR6="192.168.1.99|六号厂房|1,2,3|大门,仓库,车间"
+#   序号必须是连续编号的数字，不能重复；不需要改本脚本
+for i in $(seq 1 99); do
   var="NVR$i"
   [ -n "${!var:-}" ] || continue
   IFS='|' read -r ip label chans names <<< "${!var}"
@@ -340,7 +344,9 @@ fi
 
   if [ "$KEEP_NVR_TUNNELS" = "1" ]; then
     idx=0
-    for i in 1 2 3 4 5 6 7 8; do
+    # 每台录像机映射 3 个端口：网页(80) / SDK(8000) / RTSP(554)，端口号从 BASE 往后顺排
+    # 加录像机同样只需在 config.env 复制一行 NVR<n>，这里会自动多出 3 条隧道
+    for i in $(seq 1 99); do
       var="NVR$i"; [ -n "${!var:-}" ] || continue
       ip=$(echo "${!var}" | cut -d'|' -f1)
       idx=$((idx+1))

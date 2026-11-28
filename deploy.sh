@@ -91,6 +91,11 @@ fi
 # ---------- 3. 摄像头 ----------
 say "3/4 摄像头 / NVR"
 echo "   支持多台，逐个添加。没有更多就留空回车。"
+# 台数不限：一直问到你留空为止（上限 99 台，纯粹防手滑死循环）
+# 已经装好之后想再加一台，有两种办法：
+#   A. 重新跑本脚本（会对已有 NVR 重问一遍，适合大改）
+#   B. 只改配置：在 config.env 里照格式复制一行 NVR<n>="IP|显示名|通道|通道名"
+#      （序号往上排、不重复），然后 sudo bash install.sh，会自动多出对应的流和隧道
 NVRCFG=()
 NVRUSER_DEFAULT=${NVR_USER:-admin}
 if [ -n "${NVR_LIST:-}" ]; then
@@ -106,7 +111,7 @@ fi
 while :; do
   n=$((${#NVRCFG[@]}+1))
   [ "$AUTO" = "1" ] && break
-  [ "$n" -gt 8 ] && { echo "   最多 8 台"; break; }
+  [ "$n" -gt 99 ] && { echo "   最多 99 台"; break; }
   echo
   echo "   --- 第 $n 台 ---"
   NIP=$(ask "   NVR 的 IP（留空结束）")

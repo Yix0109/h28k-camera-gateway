@@ -9,9 +9,12 @@
 
 ## 一、准备设备系统
 
-### 1.1 装系统
+> **设备不挑型号**：arm64（RK3528、RK3568、树莓派、各类电视盒子）和 amd64（迷你主机、旧笔记本、虚拟机、云主机）都能用，只要装得上 Debian 12 / Ubuntu 22.04+、内存 ≥1 GB、能长期开机。
+> 下面 1.1 是**其中一种硬件的刷机方法**（Rockchip 方案，供参考）；别的硬件按厂商方式装好 Debian 后，直接从 1.2 继续。
 
-H28K（RK3528A）推荐用官方 **Armbian Bookworm** 镜像，通过 Maskrom（RKDevTool）刷入 eMMC：
+### 1.1 装系统（示例：Rockchip 小板用 Armbian）
+
+以 H28K（RK3528A）为例，用官方 **Armbian Bookworm** 镜像通过 Maskrom（RKDevTool）刷入 eMMC：
 
 1. 断电，卡针按住机身 Reset 孔
 2. 插 USB-C **数据线**到电脑，松开卡针
